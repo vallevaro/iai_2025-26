@@ -3,7 +3,7 @@ from objectsclass import *
 
 
 def breadth_first_search(problem):
-    """Breadth-First Search (tree/graph search)."""
+    """Breadth-First Search for tree problems (no repeated-state check)."""
     # Initial node
     node = Node(problem.initial)
 
@@ -14,23 +14,15 @@ def breadth_first_search(problem):
     # Frontier: FIFO queue
     frontier = deque([node])
 
-    # Reached: states we have seen
-    reached = {problem.initial}
-
     while frontier:
         node = frontier.popleft()
 
-        # Expand
+        # Expand children
         for child in expand(problem, node):
-            s = child.state
-
             # Goal test
-            if problem.is_goal(s):
+            if problem.is_goal(child.state):
                 return child
-
-            if s not in reached:
-                reached.add(s)
-                frontier.append(child)
+            frontier.append(child)
 
     return None  # failure
 
@@ -44,37 +36,38 @@ def expand(problem, node):
         yield Node(state=s_prime, parent=node, action=action, path_cost=cost)
 
 
-# --- Example Problem: simple graph search ---
-class GraphProblem(Problem):
-    def __init__(self, initial, goal, graph, costs=None):
+# --- Example Problem: simple binary tree ---
+class BinaryTreeProblem(Problem):
+    def __init__(self, initial, goal, tree):
         super().__init__(initial, goal)
-        self.graph = graph
-        self.costs = costs if costs else {}
+        self.tree = tree  # dict mapping parent -> [children]
 
     def actions(self, state):
-        return list(self.graph.get(state, []))
+        # The "actions" are just moving to children
+        return self.tree.get(state, [])
 
     def result(self, state, action):
+        # In a tree, the result of an action is just the child
         return action
 
     def action_cost(self, s, action, s_prime):
-        return self.costs.get((s, s_prime), 1)
+        return 1  # uniform cost
 
 
 # Example usage
 if __name__ == "__main__":
-    graph = {
+    # A small binary tree
+    tree = {
         'A': ['B', 'C'],
         'B': ['D', 'E'],
-        'C': ['F'],
+        'C': ['F', 'G'],
         'D': [],
-        'E': ['G'],
+        'E': [],
         'F': [],
         'G': []
     }
-    costs = {('A','B'):1, ('A','C'):1, ('B','D'):1, ('B','E'):1, ('C','F'):1, ('E','G'):1}
 
-    problem = GraphProblem('A', 'G', graph, costs)
+    problem = BinaryTreeProblem('A', 'F', tree)
 
     solution = breadth_first_search(problem)
 

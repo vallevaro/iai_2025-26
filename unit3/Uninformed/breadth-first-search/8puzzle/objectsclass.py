@@ -29,3 +29,21 @@ class Node:
     def __lt__(self, other):
         # Needed for priority queue comparisons
         return self.path_cost < other.path_cost
+
+
+class BinaryTreeProblem(Problem):
+    """A tree: actions(state) returns the list of children.
+    result(state, action) = action (child label).
+    """
+    def __init__(self, initial, goal, tree):
+        super().__init__(initial, goal)
+        self.tree = tree  # dict: parent -> [children]
+
+    def actions(self, state):
+        return list(self.tree.get(state, []))
+
+    def result(self, state, action):
+        return action  # the child label
+
+    def action_cost(self, s, a, s2):
+        return 1  # uniform

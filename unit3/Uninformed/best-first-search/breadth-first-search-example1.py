@@ -3,7 +3,7 @@ from objectsclass import *
 
 
 def breadth_first_search(problem):
-    """Breadth-First Search for tree problems (no repeated-state check)."""
+    """Breadth-First Search for tree problems."""
     # Initial node
     node = Node(problem.initial)
 

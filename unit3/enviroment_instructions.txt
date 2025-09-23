@@ -1,11 +1,11 @@
 # Create a new environment
-python3 -m venv myenv
+python -m venv iaienv
 
 # Activate it (Linux/Mac)
 source myenv/bin/activate
 
 # Activate it (Windows PowerShell)
-.\myenv\Scripts\Activate.ps1
+iaienv\Scripts\activate.bat
 
 # Install packages inside the environment
 pip install package

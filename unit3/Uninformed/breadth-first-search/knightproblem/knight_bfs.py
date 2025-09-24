@@ -26,7 +26,7 @@ def knight_legal_moves(pos, N):
     
     return legal
 
-from collections import deque
+# Search algorithm
 
 def bfs(start_node, goal_node, N):
     """
@@ -62,7 +62,7 @@ def bfs(start_node, goal_node, N):
 # Visualization
 
 
-def plot_knight_path_tiles(path, N, save_dir):
+def plot_knight_path_tiles(path, N):
     board = np.zeros((N, N, 3))  # RGB image
 
     # Color chessboard squares (white and gray)
@@ -95,7 +95,7 @@ def plot_knight_path_tiles(path, N, save_dir):
     plt.title("Knight's Shortest Path (Tiles Colored)")
     
     # Ensure save directory exists
-    save_dir = 'unit3/breadth-first-search/knightproblem/board_imgs'
+    save_dir = '../unit3/Uninformed/breadth-first-search/knightproblem/board_solutions'
     os.makedirs(save_dir, exist_ok=True)
     # Generate unique filename with timestamp
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -108,13 +108,12 @@ def plot_knight_path_tiles(path, N, save_dir):
 # Example usage:
 start_time = time.time()
 N=8
-save_dir = '../unit3/Uninformed/breadth-first-search/knightproblem/board_solutions'
 start, goal = (1,3), (0,7)
 
 # Start the search
 path = bfs(start, goal, N)
 # Plot solution
-plot_knight_path_tiles(path, 8, save_dir)
+plot_knight_path_tiles(path, 8)
 
 # Print solution
 print(f"Knight moves from {start} to {goal} in {len(path)-1} moves.")

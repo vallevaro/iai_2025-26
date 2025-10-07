@@ -1,3 +1,5 @@
+import sys
+import os
 import heapq
 from typing import Dict, Iterable, Callable, Hashable, List, Optional, Tuple, Any
 
@@ -8,8 +10,7 @@ def greedy_best_first_search(
     graph: Graph,
     start: Node,
     goal: Node,
-    h: Callable[[Node], float],
-) -> Tuple[Optional[List[Node]], List[Node]]:
+    h: Callable[[Node], float],) -> Tuple[Optional[List[Node]], List[Node]]:
     """
     Greedy Best-First Search (graph search).
     Expands the node with smallest heuristic h(n). Does NOT optimize path cost.
@@ -68,18 +69,24 @@ def greedy_best_first_search(
 
 # --- Example usage ---
 if __name__ == "__main__":
-    
-    # Simple unweighted graph (edges are undirected here for convenience)
-    from problem_graph2 import graph, h_values
+
+    # --- import graphs from unit3/sample_graphs ---
     import sys, os
-    sys.path.append(os.path.dirname(__file__))
-    
+
+    # weightedAstar.py is in: unit3/3.2.Informed/3.2.3.WeightedAstar/
+    # Go up to unit3/, then into sample_graphs/
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))  # -> unit3
+    GRAPHS_DIR = os.path.join(BASE_DIR, "sample_graphs")
+    sys.path.insert(0, GRAPHS_DIR)  # add the *directory*, not the .py file
+
+    from problem_graph1 import graph, h_values  # <- module name, no ".py"
+
     h = lambda n: h_values[n]
     
     start_node= 'S'
     goal_node= 'G'
-    
+
     path, expanded = greedy_best_first_search(graph, start=start_node, goal=goal_node, h=h)
     
     print("Path:", path)           # e.g., ['S', 'B', 'E', 'G']
-    print("Expanded:", expanded)   # expansion order under GBFS
+    print("Expanded:", expanded)   # expansion order under GBFS """

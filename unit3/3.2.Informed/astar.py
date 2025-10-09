@@ -1,104 +1,108 @@
+# astar.py
 import heapq
 import math
+from typing import Any, Dict, List, Tuple
 
-#
-# STEP 2: Implement the A* Search Algorithm
-#
-
-def a_star_search(graph, start, goal, heuristics):
+def a_star_search(graph: Dict[Any, Dict[Any, float]],
+                  start: Any,
+                  goal: Any,
+                  heuristics: Dict[Any, float]) -> Tuple[List[Any], float, Dict[str, Any]]:
     """
-    Finds the shortest path from start to goal using A* search.
-    graph: dict[node] -> dict[neighbor] = edge_cost
-    heuristics: dict[node] = h(node)
-    Returns a list of nodes for the path, or None if no path.
+    A* graph search with benchmarking-friendly return.
+    Returns: (path, cost, metrics)
+      - path: list of nodes from start to goal (empty if no path)
+      - cost: total path cost (float('inf') if no path)
+      - metrics: {
+            'expansions': int,
+            'generated': int,
+            'max_frontier': int,
+            'reopened': int,
+            'path_len': int,
+            'algorithm': 'A*'
+        }
     """
-    # The set of nodes already evaluated.
-    explored_set = set()
 
-    # The priority queue of nodes to be evaluated. Stores tuples of (f_score, tie, node).
-    # The tie-breaker avoids comparing nodes when f_scores are equal.
-    frontier = []
-    counter = 0
+    # --- Data structures ---
+    frontier: List[Tuple[float, int, Any]] = []  # (f, tie, node)
+    came_from: Dict[Any, Any] = {}               # best parent
+    g: Dict[Any, float] = {start: 0.0}           # best g so far
+    closed: set = set()                          # expanded nodes
+    counter = 0                                   # tie-breaker
 
-    # A dictionary to reconstruct the path. came_from[n] is the node immediately
-    # preceding n on the cheapest path from start to n currently known.
-    came_from = {}
+    # --- Metrics ---
+    expansions = 0
+    generated = 0
+    max_frontier = 0
+    reopened = 0
 
-    # g_score[n] is the cost of the cheapest path from start to n known so far.
-    g_score = {start: 0}
-
-    h_start = heuristics.get(start, 0)
-    heapq.heappush(frontier, (g_score[start] + h_start, counter, start))
+    # push start
+    h0 = heuristics.get(start, 0.0)
+    heapq.heappush(frontier, (g[start] + h0, counter, start))
+    generated += 1
+    max_frontier = max(max_frontier, len(frontier))
 
     while frontier:
-        # Get the node in the frontier with the lowest f_score.
-        # The f_score is not needed after this, so we use '_'
-        _, _, current_node = heapq.heappop(frontier)
+        max_frontier = max(max_frontier, len(frontier))
+        f_val, _, node = heapq.heappop(frontier)
 
-        # If we have reached the goal, reconstruct and return the path.
-        if current_node == goal:
-            return reconstruct_path(came_from, current_node)
-
-        if current_node in explored_set:
+        if node in closed:
+            # stale entry
             continue
-        explored_set.add(current_node)
 
-        # Explore neighbors
-        for neighbor, step_cost in graph.get(current_node, {}).items():
-            if neighbor in explored_set:
-                continue
+        # expand
+        closed.add(node)
+        expansions += 1
 
-            # Calculate the tentative g_score for the path through the current_node
-            tentative_g = g_score[current_node] + step_cost
+        if node == goal:
+            path = _reconstruct_path(came_from, node)
+            cost = g[node]
+            return path, cost, {
+                "expansions": expansions,
+                "generated": generated,
+                "max_frontier": max_frontier,
+                "reopened": reopened,
+                "path_len": len(path),
+                "algorithm": "A*",
+            }
 
-            # If this path to the neighbor is better than any previously known...
-            if tentative_g < g_score.get(neighbor, math.inf):
-                # ...record it as the new best path.
-                came_from[neighbor] = current_node
-                g_score[neighbor] = tentative_g
+        # deterministic neighbor order
+        for nbr in sorted(graph.get(node, {}).keys()):
+            step = graph[node][nbr]
+            tentative_g = g[node] + step
 
-                # Add/update the neighbor in the frontier for evaluation.
-                h = heuristics.get(neighbor, 0)
+            # found a better path to nbr
+            if tentative_g < g.get(nbr, math.inf):
+                came_from[nbr] = node
+                g[nbr] = tentative_g
                 counter += 1
-                heapq.heappush(frontier, (tentative_g + h, counter, neighbor))
+                f_n = tentative_g + heuristics.get(nbr, 0.0)
+                heapq.heappush(frontier, (f_n, counter, nbr))
+                generated += 1
 
-    # If the frontier is empty and we haven't reached the goal, no path exists.
-    return None
+                # if we had already closed nbr, we are effectively reopening it
+                if nbr in closed:
+                    reopened += 1
+                    # allow reconsideration by leaving the stale closed mark;
+                    # we'll skip stale pops but accept the new better entry
 
-def reconstruct_path(came_from, current_node):
-    """
-    Reconstructs the path from the came_from dictionary.
-    """
-    path = [current_node]
-    while current_node in came_from:
-        current_node = came_from[current_node]
-        path.append(current_node)
-    return path[::-1]  # Reverse the path to get it from start to goal
+    # no path
+    return [], float("inf"), {
+        "expansions": expansions,
+        "generated": generated,
+        "max_frontier": max_frontier,
+        "reopened": reopened,
+        "path_len": 0,
+        "algorithm": "A*",
+    }
 
-def calculate_path_cost(graph, path):
-    """
-    Calculates the total cost of a given path.
-    """
-    if not path or len(path) < 2:
-        return 0
-    cost = 0
-    for i in range(len(path) - 1):
-        cost += graph[path[i]][path[i+1]]
-    return cost
 
-# --- Example usage ---
-if __name__ == "__main__":
-    # Define start and goal cities
-    
+# ---------- helpers ----------
 
-    from data_romaniamap import romania_map, h_to_bucharest 
-    start, goal = "Arad", "Bucharest"
-    path = a_star_search(romania_map, start, goal, h_to_bucharest)
-
-    if path:
-        print("A* Path from", start, "to", goal, ":")
-        print(" → ".join(path))
-        total_cost = calculate_path_cost(romania_map, path)
-        print(f"\nTotal path cost: {total_cost} km")
-    else:
-        print(f'No path found')
+def _reconstruct_path(parent: Dict[Any, Any], goal: Any) -> List[Any]:
+    path = [goal]
+    cur = goal
+    while cur in parent:
+        cur = parent[cur]
+        path.append(cur)
+    path.reverse()
+    return path

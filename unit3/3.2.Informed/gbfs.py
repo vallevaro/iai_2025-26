@@ -1,92 +1,92 @@
-import sys
-import os
+# gbfs.py
 import heapq
-from typing import Dict, Iterable, Callable, Hashable, List, Optional, Tuple, Any
-
-Node = Hashable
-Graph = Dict[Node, Iterable[Node]]
+from typing import Any, Dict, List, Tuple
 
 def greedy_best_first_search(
-    graph: Graph,
-    start: Node,
-    goal: Node,
-    h: Callable[[Node], float],) -> Tuple[Optional[List[Node]], List[Node]]:
+    graph: Dict[Any, Dict[Any, float]],
+    start: Any,
+    goal: Any,
+    heuristics: Dict[Any, float],
+) -> Tuple[List[Any], float, Dict[str, Any]]:
     """
     Greedy Best-First Search (graph search).
-    Expands the node with smallest heuristic h(n). Does NOT optimize path cost.
+    Priority = h(n). Not optimal in general.
 
-    Parameters
-    ----------
-    graph : dict node -> iterable of neighboring nodes
-        (If you have weights, they are ignored by GBFS.)
-    start : start node
-    goal  : goal node
-    h     : heuristic function h(n) >= 0
-
-    Returns
-    -------
-    path : list of nodes from start to goal (inclusive), or None if no path found
-    expanded_order : list of nodes in the order they were expanded
+    Returns: (path, cost, metrics) with:
+      metrics = {
+        'expansions': int, 'generated': int, 'max_frontier': int,
+        'reopened': 0, 'path_len': int, 'algorithm': 'Greedy Best-First'
+      }
     """
-    # Priority queue of (h(n), tie, node)
-    # 'tie' ensures deterministic behavior when h(n) ties occur.
-    frontier: List[Tuple[float, int, Node]] = []
-    counter = 0
-    heapq.heappush(frontier, (h(start), counter, start))
-    counter += 1
 
-    came_from: Dict[Node, Optional[Node]] = {start: None}
-    visited: set[Node] = set()
-    expanded_order: List[Node] = []
+    # Priority queue: (h(n), tie, node)
+    frontier: List[Tuple[float, int, Any]] = []
+    tie = 0
+    heapq.heappush(frontier, (heuristics.get(start, 0.0), tie, start))
+
+    came_from: Dict[Any, Any] = {start: None}
+    visited = set()
+
+    # Metrics
+    expansions = 0
+    generated = 1  # start counted as generated
+    max_frontier = len(frontier)
 
     while frontier:
-        _, _, current = heapq.heappop(frontier)
+        max_frontier = max(max_frontier, len(frontier))
+        _, _, node = heapq.heappop(frontier)
 
-        if current in visited:
+        if node in visited:
             continue
-        visited.add(current)
-        expanded_order.append(current)
+        visited.add(node)
+        expansions += 1
 
-        if current == goal:
-            # Reconstruct path
-            path = []
-            n: Optional[Node] = current
-            while n is not None:
-                path.append(n)
-                n = came_from[n]
-            path.reverse()
-            return path, expanded_order
+        if node == goal:
+            path = _reconstruct_path(came_from, node)
+            cost = _path_cost(graph, path)
+            return path, cost, {
+                "expansions": expansions,
+                "generated": generated,
+                "max_frontier": max_frontier,
+                "reopened": 0,
+                "path_len": len(path),
+                "algorithm": "Greedy Best-First",
+            }
 
-        # Push neighbors prioritized purely by h(n)
-        for neigh in graph.get(current, []):
-            if neigh not in visited and neigh not in came_from:
-                came_from[neigh] = current
-                heapq.heappush(frontier, (h(neigh), counter, neigh))
-                counter += 1
+        # Deterministic neighbor order
+        for nbr in sorted(graph.get(node, {}).keys()):
+            if nbr in visited or nbr in came_from:
+                continue
+            came_from[nbr] = node
+            tie += 1
+            heapq.heappush(frontier, (heuristics.get(nbr, 0.0), tie, nbr))
+            generated += 1
 
-    return None, expanded_order
+    # No path
+    return [], float("inf"), {
+        "expansions": expansions,
+        "generated": generated,
+        "max_frontier": max_frontier,
+        "reopened": 0,
+        "path_len": 0,
+        "algorithm": "Greedy Best-First",
+    }
 
+# --- helpers ---
 
-# --- Example usage ---
-if __name__ == "__main__":
+def _reconstruct_path(parent: Dict[Any, Any], goal: Any) -> List[Any]:
+    path = [goal]
+    cur = goal
+    while cur in parent and parent[cur] is not None:
+        cur = parent[cur]
+        path.append(cur)
+    path.reverse()
+    return path if path and parent.get(path[0], None) is None else path  # start included
 
-    # --- import graphs from unit3/sample_graphs ---
-    import sys, os
-
-    # weightedAstar.py is in: unit3/3.2.Informed/3.2.3.WeightedAstar/
-    # Go up to unit3/, then into sample_graphs/
-    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))  # -> unit3
-    GRAPHS_DIR = os.path.join(BASE_DIR, "sample_graphs")
-    sys.path.insert(0, GRAPHS_DIR)  # add the *directory*, not the .py file
-
-    from datagraph2 import graph, h_values  # <- module name, no ".py"
-
-    h = lambda n: h_values[n]
-    
-    start_node= 'A'
-    goal_node= 'E'
-
-    path, expanded = greedy_best_first_search(graph, start=start_node, goal=goal_node, h=h)
-    
-    print("Path:", path)           # e.g., ['S', 'B', 'E', 'G']
-    print("Expanded:", expanded)   # expansion order under GBFS """
+def _path_cost(graph: Dict[Any, Dict[Any, float]], path: List[Any]) -> float:
+    if len(path) < 2:
+        return 0.0 if path else float("inf")
+    total = 0.0
+    for u, v in zip(path, path[1:]):
+        total += graph[u][v]
+    return total

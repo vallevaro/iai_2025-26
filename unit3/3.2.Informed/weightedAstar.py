@@ -1,98 +1,98 @@
+# weightedAstar.py
 import heapq
 import math
+from typing import Any, Dict, List, Tuple
 
-def weighted_a_star_search(graph, start, goal, heuristics, weight: float = 1.0):
+def weighted_a_star_search(
+    graph: Dict[Any, Dict[Any, float]],
+    start: Any,
+    goal: Any,
+    heuristics: Dict[Any, float],
+    weight: float = 1.0,
+) -> Tuple[List[Any], float, Dict[str, Any]]:
     """
-    Weighted A* search.
-    Uses f(n) = g(n) + weight * h(n).  With weight >= 1:
-      - w = 1.0  -> standard A*
-      - w > 1.0  -> greedier, expands fewer nodes, NOT guaranteed optimal
-
-    Parameters
-    ----------
-    graph : dict[node] -> dict[neighbor] = edge_cost
-    start : hashable
-    goal  : hashable
-    heuristics : dict[node] -> h(node) >= 0
-    weight : float >= 1.0
-
-    Returns
-    -------
-    path : list[node] | None
-        Path from start to goal (inclusive), or None if unreachable.
+    Weighted A* (graph search). f(n) = g(n) + w * h(n), with w >= 1.
+    Returns: (path, cost, metrics)
+      metrics = {
+        'expansions': int, 'generated': int, 'max_frontier': int,
+        'reopened': int, 'path_len': int, 'algorithm': f'Weighted A* (w={weight})'
+      }
     """
     if weight < 1.0:
         raise ValueError("weight must be >= 1.0 for Weighted A*.")
 
-    explored_set = set()              # closed set
-    frontier = []                     # min-heap of (f_score, tie, node)
-    counter = 0
+    # --- structures ---
+    frontier: List[Tuple[float, int, Any]] = []  # (f, tie, node)
+    came_from: Dict[Any, Any] = {}
+    g: Dict[Any, float] = {start: 0.0}
+    closed = set()
+    tie = 0
 
-    came_from = {}                    # for path reconstruction
-    g_score = {start: 0.0}
+    # --- metrics ---
+    expansions = 0
+    generated = 0
+    max_frontier = 0
+    reopened = 0
 
-    h_start = heuristics.get(start, 0.0)
-    heapq.heappush(frontier, (g_score[start] + weight * h_start, counter, start))
+    # push start
+    f0 = g[start] + weight * heuristics.get(start, 0.0)
+    heapq.heappush(frontier, (f0, tie, start))
+    generated += 1
+    max_frontier = max(max_frontier, len(frontier))
 
     while frontier:
-        _, _, current_node = heapq.heappop(frontier)
+        max_frontier = max(max_frontier, len(frontier))
+        _, _, node = heapq.heappop(frontier)
 
-        if current_node == goal:
-            return reconstruct_path(came_from, current_node)
-
-        if current_node in explored_set:
+        if node in closed:
             continue
-        explored_set.add(current_node)
 
-        for neighbor, step_cost in graph.get(current_node, {}).items():
-            if neighbor in explored_set:
-                continue
+        closed.add(node)
+        expansions += 1
 
-            tentative_g = g_score[current_node] + step_cost
+        if node == goal:
+            path = _reconstruct_path(came_from, node)
+            return path, g[node], {
+                "expansions": expansions,
+                "generated": generated,
+                "max_frontier": max_frontier,
+                "reopened": reopened,
+                "path_len": len(path),
+                "algorithm": f"Weighted A* (w={weight})",
+            }
 
-            # If we found a better path to 'neighbor', record it and (re)push to frontier
-            if tentative_g < g_score.get(neighbor, math.inf):
-                came_from[neighbor] = current_node
-                g_score[neighbor] = tentative_g
-                h = heuristics.get(neighbor, 0.0)
-                counter += 1
-                f = tentative_g + weight * h
-                heapq.heappush(frontier, (f, counter, neighbor))
+        # deterministic neighbor order
+        for nbr in sorted(graph.get(node, {}).keys()):
+            step = graph[node][nbr]
+            tentative_g = g[node] + step
 
-    return None  # no path
+            if tentative_g < g.get(nbr, math.inf):
+                came_from[nbr] = node
+                g[nbr] = tentative_g
+                tie += 1
+                f_n = tentative_g + weight * heuristics.get(nbr, 0.0)
+                heapq.heappush(frontier, (f_n, tie, nbr))
+                generated += 1
+                if nbr in closed:
+                    reopened += 1  # better path discovered after close
 
-def reconstruct_path(came_from, current_node):
-    path = [current_node]
-    while current_node in came_from:
-        current_node = came_from[current_node]
-        path.append(current_node)
-    return path[::-1]
+    # no path
+    return [], float("inf"), {
+        "expansions": expansions,
+        "generated": generated,
+        "max_frontier": max_frontier,
+        "reopened": reopened,
+        "path_len": 0,
+        "algorithm": f"Weighted A* (w={weight})",
+    }
 
-def calculate_path_cost(graph, path):
-    if not path or len(path) < 2:
-        return 0
-    cost = 0
-    for i in range(len(path) - 1):
-        cost += graph[path[i]][path[i+1]]
-    return cost
+# --- helpers ---
 
-# -------------------------
-# Example main test
-# -------------------------
-if __name__ == "__main__":
-    
-    import sys
-    import os
-    # Example: import the Romania graph from problem_graph2.py
-    from problem_graph1 import graph, h_values
-
-    start, goal = "S", "C"
-    weight = 1.0  # change to >1 for weighted A*
-
-    path = weighted_a_star_search(graph, start, goal, h_values, weight)
-    if path:
-        cost = calculate_path_cost(graph, path)
-        print(f"Weighted A* (w={weight}) path: {path}")
-        print(f"Total path cost: {cost}")
-    else:
-        print("No path found.")
+def _reconstruct_path(parent: Dict[Any, Any], goal: Any) -> List[Any]:
+    path = [goal]
+    cur = goal
+    while cur in parent:
+        cur = parent[cur]
+        path.append(cur)
+    path.reverse()
+    return path

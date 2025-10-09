@@ -1,137 +1,129 @@
+# rbfstar.py  (RBFS for benchmarking)
 from __future__ import annotations
-from typing import Callable, Dict, Hashable, Iterable, List, Optional, Tuple
 import math
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-Node = Hashable
-NeighborsFn = Callable[[Node], Iterable[Tuple[Node, float]]]
-HeuristicFn = Callable[[Node], float]
-
-
-class RBFSResult:
-    def __init__(self, path: Optional[List[Node]], cost: float, expanded: int):
-        self.path = path
-        self.cost = cost
-        self.expanded = expanded
-
-    def __repr__(self) -> str:
-        return f"RBFSResult(path={self.path}, cost={self.cost}, expanded={self.expanded})"
-
-
-def dict_neighbors(graph: Dict[Node, Dict[Node, float]]) -> NeighborsFn:
-    def _n(u: Node) -> Iterable[Tuple[Node, float]]:
-        return graph.get(u, {}).items()
-    return _n
-
-
-def rbfs(
-    start: Node,
-    goal: Node,
-    neighbors: NeighborsFn,
-    h: HeuristicFn,
-    *,
+def recursive_best_first_search(
+    graph: Dict[Any, Dict[Any, float]],
+    start: Any,
+    goal: Any,
+    heuristics: Dict[Any, float],
     weight: float = 1.0,
-) -> RBFSResult:
+) -> Tuple[List[Any], float, Dict[str, Any]]:
     """
-    Recursive Best-First Search (Korf, 1993) con f-limit y heurística ponderada.
-    Admite grafos con costes no negativos.
-
-    Devuelve RBFSResult(path, cost, expanded). Si no hay solución: path=None, cost=inf.
+    RBFS (Korf, 1993) with weighted heuristic: f(n) = g(n) + weight * h(n).
+    Returns: (path, cost, metrics) where metrics matches the benchmarking schema.
+    Requirements: non-negative edge costs.
     """
-    assert weight > 0, "weight must be > 0"
-    expanded = 0
 
-    def reconstruct_cost(path: List[Node]) -> float:
+    if weight <= 0:
+        raise ValueError("weight must be > 0 for RBFS.")
+
+    # ---- metrics ----
+    expansions = 0
+    generated = 1   # count start
+    max_stack = 1   # recursion depth proxy (memory)
+    # RBFS has no explicit frontier structure; 'reopened' not meaningful here.
+    reopened = 0
+
+    def h(n: Any) -> float:
+        return heuristics.get(n, 0.0)
+
+    def reconstruct_cost(path: List[Any]) -> float:
+        if len(path) < 2:
+            return 0.0 if path else float("inf")
         total = 0.0
-        for a, b in zip(path, path[1:]):
-            found = False
-            for nb, c in neighbors(a):
-                if nb == b:
-                    total += c
-                    found = True
-                    break
-            if not found:
-                raise RuntimeError("Inconsistent neighbors during cost reconstruction.")
+        for u, v in zip(path, path[1:]):
+            total += graph[u][v]
         return total
 
-    def rbfs_rec(
-        current: Node,
-        g: float,
-        path: List[Node],
-        f_limit: float,
-        best_g: Dict[Node, float],
-    ) -> Tuple[Optional[List[Node]], float, float]:
-        """
-        Devuelve (solution_path or None, solution_f or inf, new_f_limit)
-        new_f_limit es el mejor límite alternativo (el segundo mejor f) que “burbujea”.
-        """
-        nonlocal expanded
-        f_current = g + weight * h(current)
+    # Transposition guard: best g seen so far per node (within a branch)
+    best_g: Dict[Any, float] = {}
 
+    def rbfs_rec(
+        current: Any,
+        g_val: float,
+        path: List[Any],
+        f_limit: float,
+    ) -> Tuple[Optional[List[Any]], float]:
+        """
+        Returns (solution_path or None, best_alternative_f).
+        best_alternative_f is the next best f-cost bound to bubble up.
+        """
+        nonlocal expansions, generated, max_stack
+
+        f_current = g_val + weight * h(current)
         if f_current > f_limit:
-            return None, f_current, f_current  # sobrepasa el límite
+            return None, f_current
 
         if current == goal:
-            return path.copy(), f_current, f_current
+            return path.copy(), f_current
 
-        # Poda transposicional simple por iteración de rama: si llegamos con peor g, corta.
-        prev_best = best_g.get(current, math.inf)
-        if g >= prev_best:
-            return None, math.inf, math.inf
-        best_g[current] = g
+        # Simple transposition pruning: if we reach with worse g, cut
+        prev = best_g.get(current, math.inf)
+        if g_val >= prev:
+            return None, math.inf
+        best_g[current] = g_val
 
-        # Genera hijos
-        children: List[Tuple[Node, float, float]] = []  # (child, g_child, f_child)
-        expanded += 1
-
-        for v, cost in neighbors(current):
+        # Generate children (deterministic order)
+        children: List[Tuple[Any, float, float]] = []  # (child, g_child, f_child)
+        expansions += 1
+        nbrs = sorted(graph.get(current, {}).items())  # sort by neighbor id
+        for v, cost in nbrs:
             if cost < 0:
-                raise ValueError("Negative edge cost detected; RBFS requires non-negative costs.")
+                raise ValueError("Negative edge cost detected.")
             if v in path:
-                continue  # evita ciclos en el camino actual
-            g_child = g + cost
-            f_child = max(g_child + weight * h(v), f_current)  # mantener monotonicidad local
+                continue  # avoid cycles on current path
+            g_child = g_val + cost
+            f_child = max(g_child + weight * h(v), f_current)  # local monotonicity
             children.append((v, g_child, f_child))
 
         if not children:
-            return None, math.inf, math.inf
+            return None, math.inf
 
-        # Bucle: siempre expandir el hijo con menor f, actualizando su límite al segundo mejor
+        # Track generated nodes (children newly considered)
+        generated += len(children)
+        # Update memory proxy (recursion depth)
+        max_stack = max(max_stack, len(path) + 1)
+
+        # Main loop: expand best child under an adaptive bound
         while True:
-            children.sort(key=lambda x: x[2])
-            best = children[0]
-            best_f = best[2]
-            # Si la mejor opción ya excede el límite, no hay solución bajo este límite
-            if best_f > f_limit:
-                return None, best_f, best_f
+            children.sort(key=lambda t: t[2])  # by f_child
+            best_child, g_best, f_best = children[0]
+            if f_best > f_limit:
+                return None, f_best
 
-            # Segundo mejor f (o +inf si no hay)
-            alt_f = children[1][2] if len(children) > 1 else math.inf
+            alt = children[1][2] if len(children) > 1 else math.inf
 
-            v, g_child, f_child = best
-            path.append(v)
-            sol, sol_f, new_f = rbfs_rec(v, g_child, path, min(f_limit, alt_f), best_g)
+            path.append(best_child)
+            sol, new_f = rbfs_rec(best_child, g_best, path, min(f_limit, alt))
             path.pop()
 
             if sol is not None:
-                return sol, sol_f, new_f
+                return sol, new_f
 
-            # No hubo solución por esa rama: actualiza la f del hijo con el nuevo límite 
-            # y continúa con el siguiente mejor
-            children[0] = (v, g_child, new_f)
+            # No solution via best child: raise its f to the returned alternative and continue
+            children[0] = (best_child, g_best, new_f)
 
     initial_limit = weight * h(start)
-    solution, sol_f, _ = rbfs_rec(start, 0.0, [start], initial_limit, best_g={})
+    solution, _ = rbfs_rec(start, 0.0, [start], initial_limit)
 
     if solution is None:
-        return RBFSResult(None, float("inf"), expanded)
-    return RBFSResult(solution, reconstruct_cost(solution), expanded)
+        return [], float("inf"), {
+            "expansions": expansions,
+            "generated": generated,
+            "max_frontier": max_stack,  # expose stack as frontier proxy
+            "reopened": reopened,
+            "path_len": 0,
+            "algorithm": f"RBFS (w={weight})",
+        }
 
-
-
-if __name__ == "__main__":
-
-    from datagraph2 import graph, h_values  
-    neighbors = dict_neighbors(graph)
-    start, goal = 'A', 'G'
-    result = rbfs(start, goal, neighbors, lambda n: h_values.get(n, math.inf))
-    print(result)
+    cost = reconstruct_cost(solution)
+    return solution, cost, {
+        "expansions": expansions,
+        "generated": generated,
+        "max_frontier": max_stack,
+        "reopened": reopened,
+        "path_len": len(solution),
+        "algorithm": f"RBFS (w={weight})",
+    }

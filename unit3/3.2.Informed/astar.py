@@ -91,7 +91,7 @@ if __name__ == "__main__":
     # Define start and goal cities
     
 
-    from romania_map import romania_map, h_to_bucharest 
+    from data_romaniamap import romania_map, h_to_bucharest 
     start, goal = "Arad", "Bucharest"
     path = a_star_search(romania_map, start, goal, h_to_bucharest)
 

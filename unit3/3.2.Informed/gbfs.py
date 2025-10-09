@@ -79,12 +79,12 @@ if __name__ == "__main__":
     GRAPHS_DIR = os.path.join(BASE_DIR, "sample_graphs")
     sys.path.insert(0, GRAPHS_DIR)  # add the *directory*, not the .py file
 
-    from problem_graph1 import graph, h_values  # <- module name, no ".py"
+    from datagraph2 import graph, h_values  # <- module name, no ".py"
 
     h = lambda n: h_values[n]
     
-    start_node= 'S'
-    goal_node= 'G'
+    start_node= 'A'
+    goal_node= 'E'
 
     path, expanded = greedy_best_first_search(graph, start=start_node, goal=goal_node, h=h)
     

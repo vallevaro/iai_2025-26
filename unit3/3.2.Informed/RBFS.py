@@ -1,9 +1,6 @@
 from __future__ import annotations
 from typing import Callable, Dict, Hashable, Iterable, List, Optional, Tuple
 import math
-import os, sys
-
-
 
 Node = Hashable
 NeighborsFn = Callable[[Node], Iterable[Tuple[Node, float]]]
@@ -135,6 +132,6 @@ if __name__ == "__main__":
 
     from datagraph2 import graph, h_values  
     neighbors = dict_neighbors(graph)
-    start, goal = "A", "E"
+    start, goal = 'A', 'G'
     result = rbfs(start, goal, neighbors, lambda n: h_values.get(n, math.inf))
     print(result)

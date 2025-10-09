@@ -84,7 +84,7 @@ if __name__ == "__main__":
     import sys
     import os
     # Example: import the Romania graph from problem_graph2.py
-    from sample_graphs.problem_graph1 import graph, h_values
+    from problem_graph1 import graph, h_values
 
     start, goal = "S", "C"
     weight = 1.0  # change to >1 for weighted A*
